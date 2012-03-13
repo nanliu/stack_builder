@@ -6,17 +6,98 @@
 set -u
 set -e
 
-mkdir -p /etc/puppet/modules
-pushd /etc/puppet/modules
-# clone all of the required modules
-apt-get install -y git-core
-apt-get install -y rubygems
-<% (options['git_repos'] || {}).each do |source, target| %>
-git clone <%= source %> <%= target %>
-<% end %>
-popd
-<% puts options.inspect %>
-puppet apply --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+function rpm_install(){
+  # Setup the yum Puppet repository
+  cat >/etc/yum.repos.d/puppet.repo <<'EOFYUMREPO'
+[puppetlabs]
+name = Puppetlbas
+baseurl = http://yum.puppetlabs.com/el/$releasever/products/$basearch/
+gpgcheck = 1
+enabled = 1
+gpgkey = http://yum.puppetlabs.com/RPM-GPG-KEY-puppetlabs
+EOFYUMREPO
+
+  # Install git
+  yum install -y git
+  # Install Puppet from yum.puppetlabs.com
+  yum install -y puppet
+}
+
+function apt_install() {
+  # Download and install the puppetlabs apt public
+  apt-key adv --recv-key --keyserver pool.sks-keyservers.net 4BD6EC30
+
+  # We need to grab the distro and release in order to populate
+  # the apt repo details. We are assuming that the lsb_release command
+  # will be available as even puppet evens has it (lsb_base) package as
+  # dependancy.
+
+  # Since puppet requires lsb-release I believe this is ok to use for
+  # the purpose of distro and release discovery.
+  apt-get update
+  apt-get -y install git-core
+  apt-get -y install lsb-release
+  distro=$(lsb_release -i | cut -f 2 | tr "[:upper:]" "[:lower:]")
+  release=$(lsb_release -c | cut -f 2)
+
+  # Setup the apt Puppet repository
+  cat > /etc/apt/sources.list.d/puppetlabs.list <<EOFAPTREPO
+deb http://apt.puppetlabs.com/${distro}/ ${release} main
+EOFAPTREPO
+  apt-get update
+  # Install Puppet from Debian repositories
+  apt-get -y install puppet
+}
+
+function install_puppet() {
+  case ${breed} in
+    "redhat")
+      rpm_install ;;
+    "debian")
+      apt_install ;;
+  esac
+}
+
+function provision_puppet() {
+  if [ -f /etc/redhat-release ]; then
+    export breed='redhat'
+  elif [ -f /etc/debian_version ]; then
+    export breed='debian'
+  else
+    echo "This OS is not supported by Puppet Cloud Provisioner"
+    exit 1
+  fi
+
+  install_puppet
+  echo "Puppet installation finished!"
+}
+
+function install_modules() {
+  $module_path=${1:=/etc/puppet/modules}
+  [ -d $module_path ] || mkdir -p $module_path
+  pushd $module_path
+  <% (options['git_repos'] || {}).each do |source, target| %>
+  git clone <%= source %> <%= target %>
+  <% end %>
+  popd
+}
+
+function checkout_modules() {
+  <% (options['git_checkout'] || {}).each do |dir, branch| %>
+  pushd <%= dir %>
+  git checkout <%= branch %>
+  popd
+  <% end %>
+}
+
+provision_puppet
+install_modules
+checkout_modules
+
 <% (options['cp_files'] || {}).each do |source, target| %>
 cp <%= source %> <%= target %>
 <% end %>
+
+# <%= options.inspect %>
+puppet apply --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+exit $?

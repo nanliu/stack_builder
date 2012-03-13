@@ -1,5 +1,5 @@
 # this creates the new image to build
-type: apply
+puppet_run_type: apply
 nodes:
   - node_one:
       create:

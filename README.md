@@ -1,12 +1,14 @@
-installation instructions:
+# Installation
 
-create the following groups:
+create EC2 account.
+create keypair in appropriate EC2 region.
+create the following security groups:
   - default - 80 open icmp all, tcp 22
   - puppetmaster - open tcp 8140
 
 ensure that rubygems are installed (apt-get install rubygems)
 
-install the latest version of puppet (2.7.12)
+install the latest version of puppet (2.7.12) from apt.puppetlabs.com
 
 install puppet cloud provisioner and add its lib directory to RUBYLIB
   mkdir ~/dev/
@@ -19,15 +21,23 @@ install stack deployer and add its lib directory to RUBYLIB
   git clone https://github.com/bodepd/stack_builder
   export RUBYLIB=~/stack_builder/lib:$RUBYLIB
 
-gem install fog
 gem install guid
+gem install fog
+configure fog credentials in ~/.fog:
 
+:default:
+   :aws_access_key_id: ...
+   :aws_secret_access_key: ...
 
-run
+verify everything is working:
 
-  puppet help stack
+* verify cloud provisioner:
 
-to see if it is installed correctly,
+    puppet help node_aws
+
+* verify stack_builder:
+
+    puppet help stack
 
 then run:
 
