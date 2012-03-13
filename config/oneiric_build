@@ -1,0 +1,16 @@
+#
+# this creates the new image to build
+nodes:
+  - node_one:
+      create:
+        options:
+          keyname: dans_keys
+          # EBS backed 32 bit oneiric in us-west-2
+          image: ami-7227aa42
+          region: us-west-2
+          type: m1.small
+          group: accessible
+      install:
+        options:
+          keyfile: ~/.ssh/dans_keys.pem
+          login: ubuntu

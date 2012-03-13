@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# script that builds a puppet master using puppet apply
+#
+
+set -u
+set -e
+
+mkdir -p /etc/puppet/modules
+pushd /etc/puppet/modules
+# clone all of the required modules
+apt-get install -y git-core
+apt-get install -y rubygems
+<% (options['git_repos'] || {}).each do |source, target| %>
+git clone <%= source %> <%= target %>
+<% end %>
+popd
+<% puts options.inspect %>
+puppet apply --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+<% (options['cp_files'] || {}).each do |source, target| %>
+cp <%= source %> <%= target %>
+<% end %>
