@@ -69,6 +69,14 @@ class Puppet::Stack
     FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
   end
 
+
+  def self.list(options)
+    Puppet.notice('listing active stacks')
+    Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
+      Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
+    end
+  end
+
   # TODO I need to add some tests
   def self.create_master(master_node)
     master_only_node = [master_node]
