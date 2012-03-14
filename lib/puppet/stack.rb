@@ -105,7 +105,8 @@ class Puppet::Stack
       nodes.each_index do |index|
         node = nodes[index]
         raise(Puppet::Error, 'Nodes are suposed to be an array of Hashes') unless node.is_a?(Hash)
-        raise(Puppet::Error, 'Each node element should be composed of a single hash') unless node.size == 1
+        # I want to support groups of nodes that can run at the same time
+        #raise(Puppet::Error, 'Each node element should be composed of a single hash') unless node.size == 1
         node.each do |name, attr|
           if nodes[index][name].has_key?('create')
             nodes[index][name]['create'] ||= {}
@@ -162,8 +163,13 @@ class Puppet::Stack
       end
       Puppet[:confdir] = stack_dir
       nodes.each do |node|
+        threads = []
+        queue.clear
+        # each of these can be done in parallel
+        # except can our puppetmaster service simultaneous requests?
         node.each do |name, attrs|
           if attrs and attrs['install']
+            Puppet.info("Installing instance #{name}")
             # the hostname is either the node id or the hostname value
             # in the case where we cannot determine the hostname
             hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
@@ -176,14 +182,23 @@ class Puppet::Stack
             File.open(File.join(script_dir, "#{script_name}.erb"), 'w') do |fh|
               fh.write(compile_erb(puppet_run_type, attrs['install'].merge('certname' => certname, 'puppetmaster' => master)))
             end
-            # TODO - this is temporary until I get a better feel for how
-            # this should be done
-            install_instance(
-              hostname,
-              (attrs['install']['options'] || {}).merge(
-                {'install_script' => script_name}
+            threads << Thread.new do
+              result = install_instance(
+                hostname,
+                (attrs['install']['options'] || {}).merge(
+                  {'install_script' => script_name}
+                )
               )
-            )
+              Puppet.info("Adding instance #{hostname} to queue.")
+              queue.push({name => {'result' => result}})
+            end
+          end
+        end
+        threads.each do  |aThread|
+          begin
+            aThread.join
+          rescue Exception => spawn_err
+            puts("Failed spawning AWS node: #{spawn_err}")
           end
         end
       end
@@ -216,6 +231,7 @@ class Puppet::Stack
   # spawn a new thread
   def self.create_instances(nodes)
     threads = []
+    queue.clear
     nodes.each do |node|
       node.each do |name, attrs|
         if attrs and attrs['create']
