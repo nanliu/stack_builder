@@ -53,6 +53,22 @@ class Puppet::Stack
     test_results = test_instances(nodes['nodes'], created_instances)
   end
 
+  def self.destroy(options)
+    destroyed_dir = File.join(get_stack_path, 'destroyed')
+    FileUtils.mkdir(destroyed_dir) unless File.directory?(destroyed_dir)
+    stack_file = File.join(get_stack_path, options[:name])
+    raise(Puppet::Error, "Stackfile for stack to destroy #{stack_file} does not exists. Stack names supplied via --name must have corresponding stack file to be destroyed") unless File.exists?(stack_file)
+    stack = YAML.load_file(stack_file)
+    master_hostname = stack['master'].values[0]['hostname'] if stack['master']
+    Puppet.notice("Destroying master #{master_hostname}")
+    Puppet::Face[:node_aws, :current].terminate(master_hostname)
+    stack['nodes'].each do |name, attrs|
+      Puppet.notice("Destroying agent #{attrs['hostname']}")
+      Puppet::Face[:node_aws, :current].terminate(attrs['hostname'])
+    end
+    FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
+  end
+
   # TODO I need to add some tests
   def self.create_master(master_node)
     master_only_node = [master_node]
