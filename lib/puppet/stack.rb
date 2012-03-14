@@ -31,7 +31,7 @@ class Puppet::Stack
     # figure out the hostname of the master to connect to
     puppetmaster_hostname = if created_master.size > 0
       created_master.values[0]['hostname']
-    elsif nodes['mater']
+    elsif nodes['master']
       nodes['master'].keys[0]
     else
       nil
