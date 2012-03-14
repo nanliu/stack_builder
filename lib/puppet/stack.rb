@@ -18,6 +18,9 @@ require 'erb'
 class Puppet::Stack
 
   def self.build(options)
+
+    stack_file = File.join(get_stack_path, options[:name])
+    raise(Puppet::Error, "Stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
     # TODO I do not want to be setting up logging here
     Puppet::Util::Log.level = :debug
     Puppet::Util::Log.newdestination(:console)
@@ -39,7 +42,7 @@ class Puppet::Stack
 
     created_instances =  create_instances(nodes['nodes'])
     # install all nodes that need to be installed
-    save(options[:name], created_instances)
+    save(stack_file, {'nodes' => created_instances, 'master' => created_master})
     installed_instances = nodes['nodes'] == {} ? nil :  install_instances(
                                                           nodes['nodes'],
                                                           created_instances,
@@ -60,6 +63,9 @@ class Puppet::Stack
 
   def self.save(name, stack)
     Puppet.warning('Save has not yet been implememted')
+    File.open(name, 'w') do |fh|
+      fh.puts(stack.to_yaml)
+    end
   end
 
   # takes a config file and returns a hash of
