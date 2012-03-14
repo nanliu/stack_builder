@@ -16,6 +16,11 @@ describe Puppet::Stack do
 
   before :each do
     @tempfile = Tempfile.open('config')
+    tmpfile = Tempfile.open('config')
+    tmpfile.close
+    @stack_dir = tmpfile.path
+    tmpfile.unlink
+    Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
   end
 
   after :each do
@@ -111,37 +116,32 @@ describe Puppet::Stack do
       node_face.expects(:create).twice.with({'group' => 'default', 'image' => 'ami-123', 'type' => 't1.tiny'})
       Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
     end
-    it 'will fail if a node contains multiple hashes' do
-      node = {
-        'nodes' => [
-          {
-            'node_one' => {
-              'create' => { 'options' => {
-                'group' => 'default',
-                'image' => 'ami-123',
-              }}
-            },
-            'node_two' => {
-              'create' => { 'options' => {
-                'group' => 'default',
-                'image' => 'ami-123',
-              }}
-            }
-          }
-        ]
-      }
-      write_node_hash(node)
-      expect do
-        Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
-      end.should raise_error(Puppet::Error, /Each node element should be composed of a single hash/)
-    end
+    #it 'will fail if a node contains multiple hashes' do
+    #  node = {
+    #    'nodes' => [
+    #      {
+    #        'node_one' => {
+    #          'create' => { 'options' => {
+    #            'group' => 'default',
+    #            'image' => 'ami-123',
+    #          }}
+    #        },
+    #        'node_two' => {
+    #          'create' => { 'options' => {
+    #            'group' => 'default',
+    #            'image' => 'ami-123',
+    #          }}
+    #        }
+    #      }
+    #    ]
+    #  }
+    #  write_node_hash(node)
+    #  expect do
+    #    Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+    #  end.should raise_error(Puppet::Error, /Each node element should be composed of a single hash/)
+    #end
     describe 'when installing' do
       before :each do
-        tmpfile = Tempfile.open('config')
-        tmpfile.close
-        @stack_dir = tmpfile.path
-        tmpfile.unlink
-        Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
         Puppet::Stack.expects(:script_file_name).returns('foo')
       end
 
@@ -310,11 +310,6 @@ describe Puppet::Stack do
     end
     describe 'when installing' do
       before :each do
-        tmpfile = Tempfile.open('config')
-        tmpfile.close
-        @stack_dir = tmpfile.path
-        tmpfile.unlink
-        Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
         Puppet::Stack.expects(:script_file_name).at_least_once.returns('foo')
       end
 
@@ -434,6 +429,25 @@ describe Puppet::Stack do
         Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
         File.read(compiled_template).split("\n").should include('puppet agent --test --certname=node_one --server=some_hostname | tee /tmp/puppet_output.log')
 
+      end
+      it 'should use the masters key as the hostname when the master is not created' do
+        node = {
+          'puppet_run_type' => 'agent',
+          'master' => {
+            'master_one' => {}
+          },
+          'nodes' =>
+          ['node_one' =>
+             {'install' => { 'options' => {'keyfile' => 'foo'}}}
+          ]
+        }
+        write_node_hash(node)
+        Puppet::Face[:node, :current].expects(:install).with(
+          'node_one',
+          {'keyfile' => 'foo', 'install_script' => 'foo'}
+        )
+        Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+        File.read(compiled_template).split("\n").should include('puppet agent --test --certname=node_one --server=master_one | tee /tmp/puppet_output.log')
       end
     end
   end
