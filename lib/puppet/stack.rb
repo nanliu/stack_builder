@@ -265,7 +265,7 @@ class Puppet::Stack
             # are created
             hostname = create_instance(attrs['create']['options'])
             Puppet.info("Adding instance #{hostname} to queue.")
-            queue.push({name => {'hostname' => hostname, 'region' => attrs[:region]}})
+            queue.push({name => {'hostname' => hostname, 'region' => attrs['create']['options']['region']}})
           end
         end
       end
