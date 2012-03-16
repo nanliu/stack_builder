@@ -64,7 +64,7 @@ class Puppet::Stack
     Puppet::Face[:node_aws, :current].terminate(master_hostname)
     stack['nodes'].each do |name, attrs|
       Puppet.notice("Destroying agent #{attrs['hostname']}")
-      Puppet::Face[:node_aws, :current].terminate(attrs['hostname'])
+      Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
     end
     FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
   end
