@@ -451,4 +451,14 @@ describe Puppet::Stack do
       end
     end
   end
+  describe 'when terminating' do
+    it 'should destory created master'
+    it 'should destory all created instances'
+    it 'should not fail when there is no master to destroy'
+    it 'should not fail when there is no nodes to destroy'
+  end
+  desscribe 'when listing' do
+    it 'should list all stacks'
+    it 'should list no stacks when there are not stacks'
+  end
 end
