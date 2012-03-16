@@ -60,4 +60,7 @@ nodes:
       install:
     swift_proxy:
       test:
-        command: ruby /etc/puppet/modules/swift/ext/swift.rb
+        git_repos:
+          git://github.com/bodepd/puppetlabs-swift: /etc/puppet/modules/swift
+        commands:
+          - ruby /etc/puppet/modules/swift/ext/swift.rb
