@@ -50,7 +50,7 @@ class Puppet::Stack
                                                           puppetmaster_hostname
                                                         )
     # run tests that need to be run
-    test_results = test_instances(nodes['nodes'], created_instances)
+    test_results = install_instances(nodes['nodes'], created_instances, 'test')
   end
 
   def self.destroy(options)
@@ -159,26 +159,11 @@ class Puppet::Stack
 
   # run what ever tests need to be run
   def self.test_instances(nodes, dns_hash)
-    # TODO I need to support setting defaults
-    nodes.each do |node|
-      node.each do |name, attrs|
-        hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
-        if attrs['test']
-          options = attrs['test']['options']
-          require 'puppet/cloudpack'
-          Puppet::CloudPack.ssh_remote_execute(
-            hostname,
-            options['login'],
-            attrs['test']['command'],
-            options['keyfile']
-          )
-        end
-      end
-    end
+    install_instances(nodes, dns_hash, 'test')
   end
 
   # install all of the nodes in order
-  def self.install_instances(nodes, dns_hash, puppet_run_type, master = nil)
+  def self.install_instances(nodes, dns_hash, mode, master = nil)
     begin
       # this setting of confdir sucks
       # I need to patch cloud provisioner to allow arbitrary
@@ -197,24 +182,31 @@ class Puppet::Stack
         # each of these can be done in parallel
         # except can our puppetmaster service simultaneous requests?
         node.each do |name, attrs|
-          if attrs and attrs['install']
-            Puppet.info("Installing instance #{name}")
+          if ['master', 'agent', 'apply'].include?(mode)
+            run_type = 'install'
+          elsif mode == 'test'
+            run_type = 'test'
+          else
+            raise(Puppet::Error, "Unexpected mode #{mode}")
+          end
+          if attrs and attrs[run_type]
+            Puppet.info("#{run_type.capitalize}ing instance #{name}")
             # the hostname is either the node id or the hostname value
             # in the case where we cannot determine the hostname
             hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
-            certname = case(puppet_run_type)
+            certname = case(mode)
               when 'master' then hostname
               else name
             end
             script_name = script_file_name(hostname)
             # compile our script into a file to perform puppet run
             File.open(File.join(script_dir, "#{script_name}.erb"), 'w') do |fh|
-              fh.write(compile_erb(puppet_run_type, attrs['install'].merge('certname' => certname, 'puppetmaster' => master)))
+              fh.write(compile_erb(mode, attrs[run_type].merge('certname' => certname, 'puppetmaster' => master)))
             end
             threads << Thread.new do
               result = install_instance(
                 hostname,
-                (attrs['install']['options'] || {}).merge(
+                (attrs[run_type]['options'] || {}).merge(
                   {'install_script' => script_name}
                 )
               )
