@@ -73,7 +73,10 @@ class Puppet::Stack
   def self.list(options)
     Puppet.notice('listing active stacks')
     Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
-      Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
+      if File.file?(file)
+        Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
+        puts YAML.load_file(file).inspect
+      end
     end
   end
 
