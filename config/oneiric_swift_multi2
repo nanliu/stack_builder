@@ -15,7 +15,7 @@ defaults:
       keyfile: ~/.ssh/dans_keys.pem
       login: ubuntu
 master:
-  ec2-50-112-61-239.us-west-2.compute.amazonaws.com:
+  ec2-50-112-38-132.us-west-2.compute.amazonaws.com:
 nodes:
   - swift_storage_1:
       create:
@@ -31,3 +31,9 @@ nodes:
       install:
       test:
         command: ruby /etc/puppet/modules/swift/ext/swift.rb
+  - swift_storage_1:
+      install:
+  - swift_storage_2:
+      install:
+  - swift_storage_3:
+      install:
