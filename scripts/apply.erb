@@ -6,16 +6,31 @@
 set -u
 set -e
 
-function rpm_install(){
-  # Setup the yum Puppet repository
+function fedora_repo(){
   cat >/etc/yum.repos.d/puppet.repo <<'EOFYUMREPO'
 [puppetlabs]
-name = Puppetlbas
+name = Puppetlabs
+baseurl = http://yum.puppetlabs.com/fedora/f$releasever/products/$basearch/
+gpgcheck = 1
+enabled = 1
+gpgkey = http://yum.puppetlabs.com/RPM-GPG-KEY-puppetlabs
+EOFYUMREPO
+}
+
+function el_repo(){
+  cat >/etc/yum.repos.d/puppet.repo <<'EOFYUMREPO'
+[puppetlabs]
+name = Puppetlabs
 baseurl = http://yum.puppetlabs.com/el/$releasever/products/$basearch/
 gpgcheck = 1
 enabled = 1
 gpgkey = http://yum.puppetlabs.com/RPM-GPG-KEY-puppetlabs
 EOFYUMREPO
+}
+
+function rpm_install(){
+  # Setup the yum Puppet repository
+  rpm -q fedora-release && fedora_repo || el_repo
 
   # Install git
   yum install -y git
@@ -73,7 +88,7 @@ function provision_puppet() {
 }
 
 function install_modules() {
-  $module_path=${1:=/etc/puppet/modules}
+  module_path=${1:=/etc/puppet/modules}
   [ -d $module_path ] || mkdir -p $module_path
   pushd $module_path
   <% (options['git_repos'] || {}).each do |source, target| %>
@@ -91,7 +106,7 @@ function checkout_modules() {
 }
 
 provision_puppet
-install_modules
+install_modules /etc/puppetlabs/puppet/modules
 checkout_modules
 
 <% (options['cp_files'] || {}).each do |source, target| %>
