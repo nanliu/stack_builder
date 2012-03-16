@@ -88,7 +88,7 @@ function provision_puppet() {
 }
 
 function install_modules() {
-  module_path=${1:=/etc/puppet/modules}
+  module_path=${1:-'/etc/puppet/modules'}
   [ -d $module_path ] || mkdir -p $module_path
   pushd $module_path
   <% (options['git_repos'] || {}).each do |source, target| %>
@@ -106,7 +106,7 @@ function checkout_modules() {
 }
 
 provision_puppet
-install_modules /etc/puppetlabs/puppet/modules
+install_modules
 checkout_modules
 
 <% (options['cp_files'] || {}).each do |source, target| %>
