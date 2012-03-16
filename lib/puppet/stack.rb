@@ -59,9 +59,11 @@ class Puppet::Stack
     stack_file = File.join(get_stack_path, options[:name])
     raise(Puppet::Error, "Stackfile for stack to destroy #{stack_file} does not exists. Stack names supplied via --name must have corresponding stack file to be destroyed") unless File.exists?(stack_file)
     stack = YAML.load_file(stack_file)
-    master_hostname = stack['master'].values[0]['hostname'] if stack['master']
-    Puppet.notice("Destroying master #{master_hostname}")
-    Puppet::Face[:node_aws, :current].terminate(master_hostname)
+    unless stack['master'] == {}
+      master_hostname = stack['master'].values[0]['hostname'] if stack['master']
+      Puppet.notice("Destroying master #{master_hostname}")
+      Puppet::Face[:node_aws, :current].terminate(master_hostname, {:region => stack['master'].values[0]['region']})
+    end
     stack['nodes'].each do |name, attrs|
       Puppet.notice("Destroying agent #{attrs['hostname']}")
       Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
