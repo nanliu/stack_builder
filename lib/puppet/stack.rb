@@ -18,6 +18,9 @@ require 'erb'
 class Puppet::Stack
 
   def self.build(options)
+
+    stack_file = File.join(get_stack_path, options[:name])
+    raise(Puppet::Error, "Stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
     # TODO I do not want to be setting up logging here
     Puppet::Util::Log.level = :debug
     Puppet::Util::Log.newdestination(:console)
@@ -31,7 +34,7 @@ class Puppet::Stack
     # figure out the hostname of the master to connect to
     puppetmaster_hostname = if created_master.size > 0
       created_master.values[0]['hostname']
-    elsif nodes['mater']
+    elsif nodes['master']
       nodes['master'].keys[0]
     else
       nil
@@ -39,7 +42,7 @@ class Puppet::Stack
 
     created_instances =  create_instances(nodes['nodes'])
     # install all nodes that need to be installed
-    save(options[:name], created_instances)
+    save(stack_file, {'nodes' => created_instances, 'master' => created_master})
     installed_instances = nodes['nodes'] == {} ? nil :  install_instances(
                                                           nodes['nodes'],
                                                           created_instances,
@@ -47,7 +50,36 @@ class Puppet::Stack
                                                           puppetmaster_hostname
                                                         )
     # run tests that need to be run
-    test_results = test_instances(nodes['nodes'], created_instances)
+    test_results = install_instances(nodes['nodes'], created_instances, 'test')
+  end
+
+  def self.destroy(options)
+    destroyed_dir = File.join(get_stack_path, 'destroyed')
+    FileUtils.mkdir(destroyed_dir) unless File.directory?(destroyed_dir)
+    stack_file = File.join(get_stack_path, options[:name])
+    raise(Puppet::Error, "Stackfile for stack to destroy #{stack_file} does not exists. Stack names supplied via --name must have corresponding stack file to be destroyed") unless File.exists?(stack_file)
+    stack = YAML.load_file(stack_file)
+    unless stack['master'] == {}
+      master_hostname = stack['master'].values[0]['hostname'] if stack['master']
+      Puppet.notice("Destroying master #{master_hostname}")
+      Puppet::Face[:node_aws, :current].terminate(master_hostname, {:region => stack['master'].values[0]['region']})
+    end
+    stack['nodes'].each do |name, attrs|
+      Puppet.notice("Destroying agent #{attrs['hostname']}")
+      Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
+    end
+    FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
+  end
+
+
+  def self.list(options)
+    Puppet.notice('listing active stacks')
+    Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
+      if File.file?(file)
+        Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
+        puts YAML.load_file(file).inspect
+      end
+    end
   end
 
   # TODO I need to add some tests
@@ -60,6 +92,9 @@ class Puppet::Stack
 
   def self.save(name, stack)
     Puppet.warning('Save has not yet been implememted')
+    File.open(name, 'w') do |fh|
+      fh.puts(stack.to_yaml)
+    end
   end
 
   # takes a config file and returns a hash of
@@ -99,7 +134,8 @@ class Puppet::Stack
       nodes.each_index do |index|
         node = nodes[index]
         raise(Puppet::Error, 'Nodes are suposed to be an array of Hashes') unless node.is_a?(Hash)
-        raise(Puppet::Error, 'Each node element should be composed of a single hash') unless node.size == 1
+        # I want to support groups of nodes that can run at the same time
+        #raise(Puppet::Error, 'Each node element should be composed of a single hash') unless node.size == 1
         node.each do |name, attr|
           if nodes[index][name].has_key?('create')
             nodes[index][name]['create'] ||= {}
@@ -123,26 +159,11 @@ class Puppet::Stack
 
   # run what ever tests need to be run
   def self.test_instances(nodes, dns_hash)
-    # TODO I need to support setting defaults
-    nodes.each do |node|
-      node.each do |name, attrs|
-        hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
-        if attrs['test']
-          options = attrs['test']['options']
-          require 'puppet/cloudpack'
-          Puppet::CloudPack.ssh_remote_execute(
-            hostname,
-            options['login'],
-            attrs['test']['command'],
-            options['keyfile']
-          )
-        end
-      end
-    end
+    install_instances(nodes, dns_hash, 'test')
   end
 
   # install all of the nodes in order
-  def self.install_instances(nodes, dns_hash, puppet_run_type, master = nil)
+  def self.install_instances(nodes, dns_hash, mode, master = nil)
     begin
       # this setting of confdir sucks
       # I need to patch cloud provisioner to allow arbitrary
@@ -156,28 +177,49 @@ class Puppet::Stack
       end
       Puppet[:confdir] = stack_dir
       nodes.each do |node|
+        threads = []
+        queue.clear
+        # each of these can be done in parallel
+        # except can our puppetmaster service simultaneous requests?
         node.each do |name, attrs|
-          if attrs and attrs['install']
+          if ['master', 'agent', 'apply'].include?(mode)
+            run_type = 'install'
+          elsif mode == 'test'
+            run_type = 'test'
+          else
+            raise(Puppet::Error, "Unexpected mode #{mode}")
+          end
+          if attrs and attrs[run_type]
+            Puppet.info("#{run_type.capitalize}ing instance #{name}")
             # the hostname is either the node id or the hostname value
             # in the case where we cannot determine the hostname
             hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
-            certname = case(puppet_run_type)
+            certname = case(mode)
               when 'master' then hostname
               else name
             end
             script_name = script_file_name(hostname)
             # compile our script into a file to perform puppet run
             File.open(File.join(script_dir, "#{script_name}.erb"), 'w') do |fh|
-              fh.write(compile_erb(puppet_run_type, attrs['install'].merge('certname' => certname, 'puppetmaster' => master)))
+              fh.write(compile_erb(mode, attrs[run_type].merge('certname' => certname, 'puppetmaster' => master)))
             end
-            # TODO - this is temporary until I get a better feel for how
-            # this should be done
-            install_instance(
-              hostname,
-              (attrs['install']['options'] || {}).merge(
-                {'install_script' => script_name}
+            threads << Thread.new do
+              result = install_instance(
+                hostname,
+                (attrs[run_type]['options'] || {}).merge(
+                  {'install_script' => script_name}
+                )
               )
-            )
+              Puppet.info("Adding instance #{hostname} to queue.")
+              queue.push({name => {'result' => result}})
+            end
+          end
+        end
+        threads.each do  |aThread|
+          begin
+            aThread.join
+          rescue Exception => spawn_err
+            puts("Failed spawning AWS node: #{spawn_err}")
           end
         end
       end
@@ -210,6 +252,7 @@ class Puppet::Stack
   # spawn a new thread
   def self.create_instances(nodes)
     threads = []
+    queue.clear
     nodes.each do |node|
       node.each do |name, attrs|
         if attrs and attrs['create']
@@ -219,7 +262,7 @@ class Puppet::Stack
             # are created
             hostname = create_instance(attrs['create']['options'])
             Puppet.info("Adding instance #{hostname} to queue.")
-            queue.push({name => {'hostname' => hostname}})
+            queue.push({name => {'hostname' => hostname, 'region' => attrs['create']['options']['region']}})
           end
         end
       end

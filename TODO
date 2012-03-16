@@ -1,3 +1,7 @@
 ensure that we can set the create action type in the config file
 
 need to be able to support branches
+
+it takes way too long to bootstrap a master. I may prebootstrap a puppetmaster where all I have to do is fire it up.
+
+Should be able to prefix the hostname before every log line

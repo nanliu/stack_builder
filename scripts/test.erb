@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# script that performs classification using puppet apply
+#
+
+set -u
+set -e
+
+apt-get install -y git-core
+module_path='/etc/puppet/modules'
+[ -d $module_path ] || mkdir -p $module_path
+<% (options['git_repos'] || {}).each do |source, target| %>
+git clone <%= source %> <%= target %>
+<% end %>
+
+<% (options['git_checkout'] || {}).each do |dir, branch| %>
+pushd <%= dir %>
+git checkout <%= branch %>
+popd
+<% end %>
+
+<% (options['commands'] || []).each do |command| %>
+  <%= command %>
+<% end %>
