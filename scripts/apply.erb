@@ -97,6 +97,7 @@ function install_modules() {
   popd
 }
 
+<% if options['git_checkout'] %>
 function checkout_modules() {
   <% (options['git_checkout'] || {}).each do |dir, branch| %>
   pushd <%= dir %>
@@ -104,6 +105,7 @@ function checkout_modules() {
   popd
   <% end %>
 }
+<% end %>
 
 provision_puppet
 install_modules
