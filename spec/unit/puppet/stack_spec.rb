@@ -20,11 +20,13 @@ describe Puppet::Stack do
     tmpfile.close
     @stack_dir = tmpfile.path
     tmpfile.unlink
+    FileUtils.mkdir_p(@stack_dir)
     Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
   end
 
   after :each do
     @tempfile.unlink
+    FileUtils.rm_rf(@stack_dir)
   end
 
   def write_node_hash(node_hash)
@@ -143,10 +145,6 @@ describe Puppet::Stack do
     describe 'when installing' do
       before :each do
         Puppet::Stack.expects(:script_file_name).returns('foo')
-      end
-
-      after :each do
-        FileUtils.rm_rf(@stack_dir)
       end
 
       let :compiled_template do
@@ -313,10 +311,6 @@ describe Puppet::Stack do
         Puppet::Stack.expects(:script_file_name).at_least_once.returns('foo')
       end
 
-      after :each do
-        FileUtils.rm_rf(@stack_dir)
-      end
-
       let :compiled_template do
         File.join(@stack_dir, 'scripts', 'foo.erb')
       end
@@ -457,7 +451,7 @@ describe Puppet::Stack do
     it 'should not fail when there is no master to destroy'
     it 'should not fail when there is no nodes to destroy'
   end
-  desscribe 'when listing' do
+  describe 'when listing' do
     it 'should list all stacks'
     it 'should list no stacks when there are not stacks'
   end

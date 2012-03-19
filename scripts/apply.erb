@@ -73,46 +73,42 @@ function install_puppet() {
   esac
 }
 
-function provision_puppet() {
-  if [ -f /etc/redhat-release ]; then
-    export breed='redhat'
-  elif [ -f /etc/debian_version ]; then
-    export breed='debian'
-  else
-    echo "This OS is not supported by Puppet Cloud Provisioner"
-    exit 1
-  fi
+<% if options['install_puppet'] %>
+# install puppet
+if [ -f /etc/redhat-release ]; then
+  export breed='redhat'
+elif [ -f /etc/debian_version ]; then
+  export breed='debian'
+else
+  echo "This OS is not supported by Puppet Cloud Provisioner"
+  exit 1
+fi
 
-  install_puppet
-  echo "Puppet installation finished!"
-}
+install_puppet
+echo "Puppet installation finished!"
+<% end %>
 
-function install_modules() {
-  module_path=${1:-'/etc/puppet/modules'}
-  [ -d $module_path ] || mkdir -p $module_path
-  pushd $module_path
-  <% (options['git_repos'] || {}).each do |source, target| %>
-  git clone <%= source %> <%= target %>
-  <% end %>
-  popd
-}
 
-function checkout_modules() {
-  <% (options['git_checkout'] || {}).each do |dir, branch| %>
-  pushd <%= dir %>
-  git checkout <%= branch %>
-  popd
-  <% end %>
-}
+# clone specified git repos
+module_path=${1:-'/etc/puppet/modules'}
+[ -d $module_path ] || mkdir -p $module_path
+pushd $module_path
+<% (options['git_repos'] || {}).each do |source, target| %>
+git clone <%= source %> <%= target %>
+<% end %>
+popd
 
-provision_puppet
-install_modules
-checkout_modules
+# checkout specified branches
+<% (options['git_checkout'] || {}).each do |dir, branch| %>
+pushd <%= dir %>
+git checkout <%= branch %>
+popd
+<% end %>
 
 <% (options['cp_files'] || {}).each do |source, target| %>
 cp <%= source %> <%= target %>
 <% end %>
 
 # <%= options.inspect %>
-puppet apply --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+puppet apply --trace --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
 exit $?

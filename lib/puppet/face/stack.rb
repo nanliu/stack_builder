@@ -3,26 +3,44 @@ require 'puppet/stack'
 Puppet::Face.define(:stack, '0.0.1') do
   summary 'Face for building out multi-node deployments'
 
-
   action :create do
-    summary 'Just create a group of specified nodes'
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
+    summary 'Create a group of specified nodes to form a stack'
     when_invoked do |options|
       Puppet.fail('Create is not yet implemented')
     end
   end
 
+  action :install do
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
+    summary 'runs the specified install actions for a stack'
+    description <<-EOT
+    Runs the specified install actions for a nodes.
+    Assumes that the stack has already been created.
+    EOT
+    when_invoked do |options|
+      Puppet.fail('Install is not yet implemented')
+    end
+  end
+
+  action :test do
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
+    summary 'runs the specified integration tests'
+    description <<-EOT
+    Runs the specified test action for a stack.
+    Assumes that the stack has already been created.
+    EOT
+    when_invoked do |options|
+      Puppet.fail('Test is not yet implemented')
+    end
+  end
+
   action :build do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
-    option '--config=' do
-      summary 'Config file used to specify the multi node deployment to build'
-      description <<-EOT
-      Config file used to specficy how to build out stacks of nodes.
-      EOT
-      required
-    end
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
     description <<-EOT
      Reads a config file and uses it to build out a collection
      of nodes.
@@ -37,10 +55,7 @@ Puppet::Face.define(:stack, '0.0.1') do
   end
 
   action :destroy do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
+    Puppet::Stack.add_option_name(self)
     when_invoked do |options|
       Puppet::Stack.destroy(options)
     end
@@ -53,11 +68,9 @@ Puppet::Face.define(:stack, '0.0.1') do
     # list all of the projects that are being managed
   end
 
-  action :open_screens do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
+  action :connect do
+    Puppet::Stack.add_option_name(self)
+    summary 'connect to all of the nodes in the stack via tmux'
     when_invoked do |options|
       puts 'Not impleneted yet'
     end

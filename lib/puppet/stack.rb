@@ -17,40 +17,71 @@ require 'erb'
 #
 class Puppet::Stack
 
-  def self.build(options)
-
-    stack_file = File.join(get_stack_path, options[:name])
-    raise(Puppet::Error, "Stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
+  def self.configure_logging
     # TODO I do not want to be setting up logging here
     Puppet::Util::Log.level = :debug
     Puppet::Util::Log.newdestination(:console)
-    # parse the nodes that compose the stack
-    config = YAML.load_file(options[:config]) || {'nodes' => [], 'master' => {}}
-    nodes  = process_config(config)
-    puppet_run_type = config['puppet_run_type'] || 'apply'
+  end
 
+  # parse the nodes that compose the stack
+  def self.get_nodes(config_file)
+    config = YAML.load_file(config_file) || {'nodes' => [], 'master' => {}}
+    nodes  = process_config(config)
+  end
+
+  def self.build(options)
+    configure_logging
+    nodes = get_nodes(options[:config])
+    created_nodes   =  create(options, nodes)
+    installed_nodes = install(options, nodes, created_nodes)
+    test_results    =    test(options, nodes, created_nodes)
+  end
+
+  def self.stack_exists?(name)
+    stack_file = File.join(get_stack_path, name)
+    File.exists?(stack_file)
+  end
+
+  def self.create(options, nodes)
+    stack_file = File.join(get_stack_path, options[:name])
+    raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if stack_exists?(options[:name])
+    FileUtils.touch(File.join(stack_file))
     # create all nodes that need to be created
-    created_master = create_master(nodes['master'])
+    created_master    = create_instances([nodes['master']])
+    created_instances =  create_instances(nodes['nodes'])
+    created_nodes = {'nodes' => created_instances, 'master' => created_master}
+
+    # install all nodes that need to be installed
+    save(stack_file, created_nodes)
+    created_nodes
+  end
+
+  def self.install(options, nodes, created_nodes)
     # figure out the hostname of the master to connect to
-    puppetmaster_hostname = if created_master.size > 0
-      created_master.values[0]['hostname']
+    puppetmaster_hostname = if created_nodes['master'].size > 0
+      created_nodes['master'].values[0]['hostname']
     elsif nodes['master']
       nodes['master'].keys[0]
     else
       nil
     end
 
-    created_instances =  create_instances(nodes['nodes'])
-    # install all nodes that need to be installed
-    save(stack_file, {'nodes' => created_instances, 'master' => created_master})
+    # install all of the nodes
+    installed_master = install_instances(
+                         [nodes['master']],
+                         created_nodes['master'],
+                         'master'
+                       )
     installed_instances = nodes['nodes'] == {} ? nil :  install_instances(
                                                           nodes['nodes'],
-                                                          created_instances,
-                                                          puppet_run_type,
+                                                          created_nodes['nodes'],
+                                                          nodes['puppet_run_type'],
                                                           puppetmaster_hostname
                                                         )
-    # run tests that need to be run
-    test_results = install_instances(nodes['nodes'], created_instances, 'test')
+  end
+
+  def self.test(options, nodes, created_nodes)
+    install_instances(nodes['nodes'], created_nodes['nodes'], 'test')
   end
 
   def self.destroy(options)
@@ -80,14 +111,6 @@ class Puppet::Stack
         puts YAML.load_file(file).inspect
       end
     end
-  end
-
-  # TODO I need to add some tests
-  def self.create_master(master_node)
-    master_only_node = [master_node]
-    created_master = create_instances(master_only_node)
-    installed_master = install_instances(master_only_node, created_master, 'master')
-    created_master
   end
 
   def self.save(name, stack)
@@ -154,7 +177,11 @@ class Puppet::Stack
         end
       end
     end
-    {'nodes' => nodes, 'master' => master}
+    {
+      'nodes' => nodes,
+      'master' => master,
+      'puppet_run_type' => config_hash['puppet_run_type'] || 'apply'
+    }
   end
 
   # run what ever tests need to be run
@@ -296,4 +323,21 @@ class Puppet::Stack
     @queue ||= Queue.new
   end
 
+  # methods to add options
+  def self.add_option_name(action)
+    action.option '--name=' do
+      summary 'identifier that refers to the specified deployment'
+      required
+    end
+  end
+
+  def self.add_option_config(action)
+    action.option '--config=' do
+      summary 'Config file used to specify the multi node deployment to build'
+      description <<-EOT
+      Config file used to specficy how to build out stacks of nodes.
+      EOT
+      required
+    end
+  end
 end
