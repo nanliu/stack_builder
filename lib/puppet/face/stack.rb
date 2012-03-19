@@ -6,23 +6,18 @@ Puppet::Face.define(:stack, '0.0.1') do
 
   action :create do
     summary 'Just create a group of specified nodes'
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
     when_invoked do |options|
       Puppet.fail('Create is not yet implemented')
     end
   end
 
+    end
+    end
   action :build do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
-    option '--config=' do
-      summary 'Config file used to specify the multi node deployment to build'
-      description <<-EOT
-      Config file used to specficy how to build out stacks of nodes.
-      EOT
-      required
-    end
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
     description <<-EOT
      Reads a config file and uses it to build out a collection
      of nodes.
@@ -37,10 +32,7 @@ Puppet::Face.define(:stack, '0.0.1') do
   end
 
   action :destroy do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
+    Puppet::Stack.add_option_name(self)
     when_invoked do |options|
       Puppet::Stack.destroy(options)
     end
@@ -53,11 +45,8 @@ Puppet::Face.define(:stack, '0.0.1') do
     # list all of the projects that are being managed
   end
 
-  action :open_screens do
-    option '--name=' do
-      summary 'identifier that refers to the specified deployment'
-      required
-    end
+  action :connect do
+    Puppet::Stack.add_option_name(self)
     when_invoked do |options|
       puts 'Not impleneted yet'
     end
