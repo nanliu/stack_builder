@@ -70,9 +70,10 @@ Puppet::Face.define(:stack, '0.0.1') do
 
   action :connect do
     Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
     summary 'connect to all of the nodes in the stack via tmux'
     when_invoked do |options|
-      puts 'Not impleneted yet'
+      Puppet::Stack.tmux(options)
     end
   end
 
