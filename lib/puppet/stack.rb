@@ -25,16 +25,16 @@ class Puppet::Stack
 
   # parse the nodes that compose the stack
   def self.get_nodes(config_file)
-    config = YAML.load_file(config_file) || {'nodes' => [], 'master' => {}}
+    config = YAML.load_file(File.expand_path(config_file)) || {'nodes' => [], 'master' => {}}
     nodes  = process_config(config)
   end
 
   def self.build(options)
     configure_logging
-    nodes = get_nodes(options[:config])
-    created_nodes   =  create(options, nodes)
+    nodes           = get_nodes(options[:config])
+    created_nodes   = create(options, nodes)
     installed_nodes = install(options, nodes, created_nodes)
-    test_results    =    test(options, nodes, created_nodes)
+    test_results    = test(options, nodes, created_nodes)
   end
 
   def self.stack_exists?(name)
@@ -48,7 +48,7 @@ class Puppet::Stack
     FileUtils.touch(File.join(stack_file))
     # create all nodes that need to be created
     created_master    = create_instances([nodes['master']])
-    created_instances =  create_instances(nodes['nodes'])
+    created_instances = create_instances(nodes['nodes'])
     created_nodes = {'nodes' => created_instances, 'master' => created_master}
 
     # install all nodes that need to be installed
@@ -102,7 +102,6 @@ class Puppet::Stack
     FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
   end
 
-
   def self.list(options)
     Puppet.notice('listing active stacks')
     Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
@@ -111,6 +110,57 @@ class Puppet::Stack
         puts YAML.load_file(file).inspect
       end
     end
+  end
+
+  def self.tmux(options)
+    raise Puppet::Error "Error: tmux not available, please install tmux." if `which tmux`.empty?
+
+    file    = File.join(get_stack_path, options[:name])
+    systems = YAML.load_file(file) if File.file?(file)
+    systems ||= {}
+
+    config = get_nodes(options[:config])
+
+    master = config['master'] || {}
+    require 'pp'
+
+    ssh = ''
+    master.each do |name, opt|
+      begin
+        hostname = systems['nodes'][name]['hostname']
+      rescue
+        hostname = name
+      end
+      keyfile = opt['install']['options']['keyfile']
+      login   = opt['install']['options']['login']
+      ssh     = "'ssh -A -i #{keyfile} #{login}@#{hostname}'"
+    end
+
+    Puppet.debug "tmux new-session -s #{options[:name]} -n master -d #{ssh}"
+    `tmux new-session -s #{options[:name]} -n master -d #{ssh}`
+
+    nodenum = 1
+    # We assume the connection info is consistent throughout create, install, test.
+    nodes   = config['nodes'].inject({}) { |res, elm| res= elm.merge(res) }
+
+    nodes.keys.sort.each do |name|
+      opt = nodes[name]
+      begin
+        hostname = systems['nodes'][name]['hostname']
+      rescue
+        hostname = name
+      end
+      keyfile = opt['install']['options']['keyfile']
+      login   = opt['install']['options']['login']
+      ssh     = "'ssh -A -i #{keyfile} #{login}@#{hostname}'"
+
+      Puppet.debug "tmux new-window -t #{options[:name]}:#{nodenum} -n #{name} #{ssh}"
+      `tmux new-window -t #{options[:name]}:#{nodenum} -n #{name} #{ssh} 2>&1`
+      nodenum += 1
+    end
+
+    puts "Connecting to session: tmux attach-session -t #{options[:name]}"
+    `tmux attach-session -t #{options[:name]}`
   end
 
   def self.save(name, stack)
