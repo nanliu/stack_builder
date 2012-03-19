@@ -3,18 +3,41 @@ require 'puppet/stack'
 Puppet::Face.define(:stack, '0.0.1') do
   summary 'Face for building out multi-node deployments'
 
-
   action :create do
-    summary 'Just create a group of specified nodes'
     Puppet::Stack.add_option_name(self)
     Puppet::Stack.add_option_config(self)
+    summary 'Create a group of specified nodes to form a stack'
     when_invoked do |options|
       Puppet.fail('Create is not yet implemented')
     end
   end
 
+  action :install do
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
+    summary 'runs the specified install actions for a stack'
+    description <<-EOT
+    Runs the specified install actions for a nodes.
+    Assumes that the stack has already been created.
+    EOT
+    when_invoked do |options|
+      Puppet.fail('Install is not yet implemented')
     end
+  end
+
+  action :test do
+    Puppet::Stack.add_option_name(self)
+    Puppet::Stack.add_option_config(self)
+    summary 'runs the specified integration tests'
+    description <<-EOT
+    Runs the specified test action for a stack.
+    Assumes that the stack has already been created.
+    EOT
+    when_invoked do |options|
+      Puppet.fail('Test is not yet implemented')
     end
+  end
+
   action :build do
     Puppet::Stack.add_option_name(self)
     Puppet::Stack.add_option_config(self)
@@ -47,6 +70,7 @@ Puppet::Face.define(:stack, '0.0.1') do
 
   action :connect do
     Puppet::Stack.add_option_name(self)
+    summary 'connect to all of the nodes in the stack via tmux'
     when_invoked do |options|
       puts 'Not impleneted yet'
     end
