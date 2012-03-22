@@ -268,7 +268,7 @@ class Puppet::Stack
         # each of these can be done in parallel
         # except can our puppetmaster service simultaneous requests?
         node.each do |name, attrs|
-          if ['master', 'agent', 'apply'].include?(mode)
+          if ['pe_master', 'master', 'agent', 'apply'].include?(mode)
             run_type = 'install'
           elsif mode == 'test'
             run_type = 'test'
@@ -281,7 +281,7 @@ class Puppet::Stack
             # in the case where we cannot determine the hostname
             hostname = dns_hash[name] ? dns_hash[name]['hostname'] : name
             certname = case(mode)
-              when 'master' then hostname
+              when 'master', 'pe_master' then hostname
               else name
             end
             script_name = script_file_name(hostname)
