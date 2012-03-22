@@ -15,20 +15,20 @@ require 'erb'
 # for installation, I should use Nan's code and convert a specified hash
 # into class declarations passed in via -e
 #
+# TODO figure out how to abstract the thread code into a method that takes a
+# block
+# TODO figure out how to make master and nodes more similar to consolidate
+# code paths
 class Puppet::Stack
 
   def self.configure_logging
     # TODO I do not want to be setting up logging here
+    # I need to figure out the correct way to just let faces do this
     Puppet::Util::Log.level = :debug
     Puppet::Util::Log.newdestination(:console)
   end
 
-  # parse the nodes that compose the stack
-  def self.get_nodes(config_file)
-    config = YAML.load_file(File.expand_path(config_file)) || {'nodes' => [], 'master' => {}}
-    nodes  = process_config(config)
-  end
-
+  # implements the build action
   def self.build(options)
     configure_logging
     nodes           = get_nodes(options[:config])
@@ -43,10 +43,10 @@ class Puppet::Stack
     raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
     # create the stackfile first to help lessen sync issues
     FileUtils.touch(File.join(stack_file))
-    # create all nodes that need to be created
-    created_master    = create_instances([nodes['master']])
-    created_instances = create_instances(nodes['nodes'])
-    created_nodes = {'nodes' => created_instances, 'master' => created_master}
+    # create the master and nodes
+    created_nodes = {}
+    created_nodes['master'] = create_instances([nodes['master']])
+    created_nodes['nodes']  = create_instances(nodes['nodes'])
 
     # install all nodes that need to be installed
     save(stack_file, created_nodes)
@@ -55,19 +55,22 @@ class Puppet::Stack
 
   def self.install(options, nodes, created_nodes)
     # figure out the hostname of the master to connect to
-    puppetmaster_hostname = if created_nodes['master'].size > 0
-      created_nodes['master'].values[0]['hostname']
-    elsif nodes['master']
-      nodes['master'].keys[0]
+    # TODO refactor this ugly code
+    master_key = nodes['master'].keys[0]
+    nodes['master'][master_key] ||= {}
+    puppetmaster_hostname = if created_nodes['master'][master_key]
+      created_nodes['master'][master_key]['hostname'] || master_key
     else
-      nil
+      master_key
     end
 
     # install all of the nodes
     installed_master = install_instances(
                          [nodes['master']],
                          created_nodes['master'],
-                         'master'
+                         # master type determines the script
+                         # that we will use to install the master
+                         nodes['master'].values[0]['master_type'] || 'master'
                        )
     installed_instances = nodes['nodes'] == {} ? nil :  install_instances(
                                                           nodes['nodes'],
@@ -108,7 +111,7 @@ class Puppet::Stack
   end
 
   def self.tmux(options)
-    raise Puppet::Error "Error: tmux not available, please install tmux." if `which tmux`.empty?
+    raise(Puppet::Error, "Error: tmux not available, please install tmux.") if `which tmux`.empty?
 
     file    = File.join(get_stack_path, options[:name])
     systems = YAML.load_file(file) if File.file?(file)
@@ -120,9 +123,10 @@ class Puppet::Stack
     require 'pp'
 
     ssh = ''
+
     master.each do |name, opt|
       begin
-        hostname = systems['nodes'][name]['hostname']
+        hostname = systems['master'][name]['hostname']
       rescue
         hostname = name
       end
@@ -159,27 +163,23 @@ class Puppet::Stack
   end
 
   def self.save(name, stack)
-    Puppet.warning('Save has not yet been implememted')
     File.open(name, 'w') do |fh|
       fh.puts(stack.to_yaml)
     end
   end
 
+  # parse the nodes that compose the stack
+  def self.get_nodes(config_file)
+    config = YAML.load_file(File.expand_path(config_file)) ||
+      {'nodes' => [], 'master' => {}}
+    nodes  = process_config(config)
+  end
   # takes a config file and returns a hash of
   # nodes to build
   def self.process_config(config_hash)
     nodes = {}
     master = {}
-    creation_defaults = {}
-    installation_defaults = {}
-    # apply the defaults
-    if(config_hash['defaults'])
-      Puppet.debug('Getting defaults')
-      creation_defaults = config_hash['defaults']['create'] || {}
-      installation_defaults = config_hash['defaults']['install'] || {}
-    else
-      Puppet.debug("No defaults specified")
-    end
+    defaults = get_defaults(config_hash)
     if config_hash['master']
       master = config_hash['master']
       raise(Puppet::Error, 'only a single master is supported') if master.size > 1
@@ -367,6 +367,7 @@ class Puppet::Stack
     created_instances
   end
 
+  # method that actually calls cloud provisioner
   def self.install_instance(hostname, options)
     Puppet.debug("Calling puppet node install with #{options.inspect}")
     Puppet::Face[:node, :current].install(hostname, options)
