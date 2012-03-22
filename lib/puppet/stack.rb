@@ -37,14 +37,11 @@ class Puppet::Stack
     test_results    = test(options, nodes, created_nodes)
   end
 
-  def self.stack_exists?(name)
-    stack_file = File.join(get_stack_path, name)
-    File.exists?(stack_file)
-  end
 
   def self.create(options, nodes)
     stack_file = File.join(get_stack_path, options[:name])
-    raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if stack_exists?(options[:name])
+    raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
+    # create the stackfile first to help lessen sync issues
     FileUtils.touch(File.join(stack_file))
     # create all nodes that need to be created
     created_master    = create_instances([nodes['master']])
@@ -90,15 +87,13 @@ class Puppet::Stack
     stack_file = File.join(get_stack_path, options[:name])
     raise(Puppet::Error, "Stackfile for stack to destroy #{stack_file} does not exists. Stack names supplied via --name must have corresponding stack file to be destroyed") unless File.exists?(stack_file)
     stack = YAML.load_file(stack_file)
-    unless stack['master'] == {}
-      master_hostname = stack['master'].values[0]['hostname'] if stack['master']
-      Puppet.notice("Destroying master #{master_hostname}")
-      Puppet::Face[:node_aws, :current].terminate(master_hostname, {:region => stack['master'].values[0]['region']})
+    ['master', 'nodes'].each do |type|
+      stack[type].each do |k, attrs|
+        Puppet.notice("Destroying #{type} #{attrs['hostname']}")
+        Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
+      end
     end
-    stack['nodes'].each do |name, attrs|
-      Puppet.notice("Destroying agent #{attrs['hostname']}")
-      Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
-    end
+    # keep a history of the stacks that we have destroyed
     FileUtils.mv(stack_file, File.join(destroyed_dir, "#{options[:name]}-#{Time.now.to_i}"))
   end
 
@@ -190,14 +185,14 @@ class Puppet::Stack
       raise(Puppet::Error, 'only a single master is supported') if master.size > 1
       master.each do |name, attr|
         if attr
-          if master[name].has_key?('create')
-            master[name]['create'] ||= {}
-            master[name]['create']['options'] = (creation_defaults['options'] || {}).merge(attr['create']['options'] || {})
-          end
-          if master[name].has_key?('install')
-            # TODO I am not yet merging over non-options
-            master[name]['install'] ||= {}
-            master[name]['install']['options'] = (installation_defaults['options'] || {}).merge(attr['install']['options'] || {})
+          ['create', 'install'].each do |type|
+            if master[name].has_key?(type)
+              master[name][type] ||= {}
+              master[name][type]['options'] =
+                (defaults[type]['options'] || {}).merge(
+                  attr[type]['options'] || {}
+                )
+            end
           end
         end
       end
@@ -209,20 +204,19 @@ class Puppet::Stack
         raise(Puppet::Error, 'Nodes are suposed to be an array of Hashes') unless node.is_a?(Hash)
         # I want to support groups of nodes that can run at the same time
         #raise(Puppet::Error, 'Each node element should be composed of a single hash') unless node.size == 1
-        node.each do |name, attr|
-          if nodes[index][name].has_key?('create')
-            nodes[index][name]['create'] ||= {}
-            nodes[index][name]['create']['options'] = (creation_defaults['options'] || {}).merge(attr['create']['options'] || {})
-          end
-          if nodes[index][name].has_key?('install')
-            # TODO I am not yet merging over non-options
-            nodes[index][name]['install'] ||= {}
-            nodes[index][name]['install']['options'] = (installation_defaults['options'] || {}).merge(attr['install']['options'] || {})
-          end
-          if nodes[index][name].has_key?('test')
-            # the install options are the defaults for test!!!
-            nodes[index][name]['test'] ||= {}
-            nodes[index][name]['test']['options'] = (installation_defaults['options'] || {}).merge(attr['test']['options'] || {})
+        node.each do |name, attrs|
+          {
+            'create'  => 'create',
+            'install' => 'install',
+            'test'    => 'install'
+          }.each do |type, default_type|
+            if attrs.has_key?(type)
+              nodes[index][name][type] ||= {}
+              nodes[index][name][type]['options'] =
+                (defaults[default_type]['options'] || {}).merge(
+                  attrs[type]['options'] || {}
+                )
+            end
           end
         end
       end
@@ -232,6 +226,21 @@ class Puppet::Stack
       'master' => master,
       'puppet_run_type' => config_hash['puppet_run_type'] || 'apply'
     }
+  end
+
+  def self.get_defaults(config_hash)
+    # TODO - the user should be able to supply their defaults
+    defaults = {}
+    if(config_hash['defaults'])
+      Puppet.debug('Getting defaults')
+      ['create', 'install'].each do |d|
+        defaults[d]= config_hash['defaults'][d] || {}
+      end
+    else
+      Puppet.debug("No defaults specified")
+      defaults = {'create' => {}, 'install' => {}}
+    end
+    defaults
   end
 
   # run what ever tests need to be run
