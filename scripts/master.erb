@@ -15,9 +15,20 @@ apt-get install -y rubygems
 git clone <%= source %> <%= target %>
 <% end %>
 popd
-<% if options['manifest'] %>
-puppet apply --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+<% (options['git_checkout'] || {}).each do |dir, branch| %>
+pushd <%= dir %>
+git checkout <%= branch %>
+popd
 <% end %>
 <% (options['cp_files'] || {}).each do |source, target| %>
 cp <%= source %> <%= target %>
+<% end %>
+
+<% if options['manifest'] %>
+mkdir -p /var/lib/puppet_client
+# <%= options.inspect %>
+puppet apply --vardir /var/lib/puppet_client --trace --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
+return=$?
+ls -lart /var/lib/puppet
+exit $?
 <% end %>
