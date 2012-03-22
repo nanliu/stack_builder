@@ -1,0 +1,21 @@
+# this creates the new image to build
+puppet_run_type: apply
+nodes:
+  - glance_single:
+      create:
+        options:
+          keyname: dans_keys
+          # EBS backed 32 bit oneiric in us-west-2
+          image: ami-8226abb2
+          region: us-west-2
+          type: m1.small
+          group: accessible
+      install:
+        git_repos:
+          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
+          git://github.com/bodepd/puppetlabs-ruby: /etc/puppet/modules/ruby
+          git://github.com/bodepd/puppetlabs-glance: /etc/puppet/modules/glance
+        manifest: /etc/puppet/modules/glance/examples/all.pp
+        options:
+          keyfile: ~/.ssh/dans_keys.pem
+          login: ubuntu

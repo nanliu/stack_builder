@@ -1,0 +1,14 @@
+# this creates the new image to build
+puppet_run_type: apply
+nodes:
+  - node_one:
+      create:
+        options:
+          keyname: dans_keys
+          # EBS backed 32 bit oneiric in us-west-2
+          image: ami-8226abb2
+          region: us-west-2
+          type: m1.small
+          group: accessible
+        install:
+          

@@ -1,0 +1,35 @@
+# this creates the new image to build
+puppet_run_type: apply
+defaults:
+  create:
+    options:
+      keyname: dans_keys
+      # EBS backed 32 bit oneiric in us-west-2
+      image: ami-e434b9d4
+      region: us-west-2
+      type: m1.small
+      # TODO this group had to be created
+      group: accessible
+  install:
+    options:
+      keyfile: ~/.ssh/dans_keys.pem
+      login: ubuntu
+nodes:
+  - master_node:
+      create:
+        options:
+          group: puppetmaster
+      install:
+        git_repos:
+          git://github.com/bodepd/puppetlabs-puppet: /etc/puppet/modules/puppet
+          git://github.com/puppetlabs/puppetlabs-stdlib: /etc/puppet/modules/stdlib
+          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
+          git://github.com/puppetlabs/puppetlabs-mysql: /etc/puppet/modules/mysql
+          git://github.com/puppetlabs/puppet-concat: /etc/puppet/modules/concat
+        git_checkout:
+          /etc/puppet/modules/puppet: dev
+        manifest:
+          /etc/puppet/modules/puppet/examples/storeconfigs.pp
+    other_node:
+      create:
+      install:
