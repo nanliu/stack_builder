@@ -106,7 +106,8 @@ class Puppet::Stack
 
   def self.list(options)
     Puppet.notice('listing active stacks')
-    Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
+    stacks = {}
+    Dir[File.expand_path(File.join(get_stack_path, '*'))].each do |file|
       if File.file?(file)
         stacks[File.basename(file)] = YAML.load_file(file)
       end
@@ -347,7 +348,7 @@ class Puppet::Stack
       node.each do |name, attrs|
         if attrs and attrs['create']
           threads << Thread.new do
-            Puppet.info("Building instance #{name}")
+           Puppet.info("Building instance #{name}")
             # TODO I may want to capture more data when nodes
             # are created
             hostname = create_instance(attrs['create']['options'])
