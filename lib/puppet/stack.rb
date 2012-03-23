@@ -40,11 +40,15 @@ class Puppet::Stack
 
   def self.create(options, nodes)
     stack_file = File.join(get_stack_path, options[:name])
-    raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
-    # create the stackfile first to help lessen sync issues
-    FileUtils.touch(File.join(stack_file))
+    begin
+      file = File.new(stack_file, File::CREAT|File::EXCL)
+    rescue Errno::EEXIST => ex
+      raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique")
+    ensure
+      file.close
+    end
     # create the master and nodes
-    created_nodes = {}
+    created_nodes = {'config' => File.expand_path(options[:config])}
     created_nodes['master'] = create_instances([nodes['master']])
     created_nodes['nodes']  = create_instances(nodes['nodes'])
 
