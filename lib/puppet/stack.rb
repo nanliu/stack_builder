@@ -104,10 +104,10 @@ class Puppet::Stack
     Puppet.notice('listing active stacks')
     Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
       if File.file?(file)
-        Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
-        puts YAML.load_file(file).inspect
+        stacks[File.basename(file)] = YAML.load_file(file)
       end
     end
+    stacks
   end
 
   def self.tmux(options)

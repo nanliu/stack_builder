@@ -66,7 +66,14 @@ Puppet::Face.define(:stack, '0.0.1') do
     when_invoked do |options|
       Puppet::Stack.list(options)
     end
-    # list all of the projects that are being managed
+
+    when_rendering :console do |value|
+      value.collect do |id, status_hash|
+        "#{id}:\n" + status_hash.collect do |field, val|
+          "  #{field}: #{val.inspect}"
+        end.sort.join("\n")
+      end.sort.join("\n")
+    end
   end
 
   action :connect do
