@@ -97,7 +97,7 @@ class Puppet::Stack
     ['master', 'nodes'].each do |type|
       stack[type].each do |k, attrs|
         Puppet.notice("Destroying #{type} #{attrs['hostname']}")
-        Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
+        Puppet::Face[:node_aws, :current].terminate(attrs.delete('hostname'), attrs)
       end
     end
     # keep a history of the stacks that we have destroyed
