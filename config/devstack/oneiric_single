@@ -1,0 +1,22 @@
+# this creates the new image to build
+puppet_run_type: apply
+nodes:
+  - all:
+      create:
+        options:
+          keyname: dans_keys
+          # EBS backed 32 bit oneiric in us-west-2
+          image: ami-e434b9d4
+          region: us-west-2
+          type: m1.small
+          group: accessible
+      install:
+        install_puppet: false
+        git_repos:
+          git://github.com/bodepd/puppetlabs-devstack: /etc/puppet/modules/devstack
+          git://github.com/puppetlabs/puppet-vcsrepo /etc/puppet/modules/vcsrepo
+          git://github.com/puppetlabs/puppetlabs-git /etc/puppet/modules/git
+        manifest: /etc/puppet/modules/devstack/examples/site.pp
+        options:
+          keyfile: ~/.ssh/dans_keys.pem
+          login: ubuntu

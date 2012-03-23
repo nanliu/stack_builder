@@ -52,3 +52,7 @@ us-east-1:
 
 * Ubuntu Oneric: ami-a0ba68c9 (i386), ami-baba68d3 (x86_64)
 * Fedora 16: ami-5f16d836 (i386), ami-0316d86a (x86_64)
+
+
+
+- I would like to be able to specify a master from a different file
