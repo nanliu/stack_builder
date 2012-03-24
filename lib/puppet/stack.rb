@@ -40,11 +40,15 @@ class Puppet::Stack
 
   def self.create(options, nodes)
     stack_file = File.join(get_stack_path, options[:name])
-    raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique") if File.exists?(stack_file)
-    # create the stackfile first to help lessen sync issues
-    FileUtils.touch(File.join(stack_file))
+    begin
+      file = File.new(stack_file, File::CREAT|File::EXCL)
+    rescue Errno::EEXIST => ex
+      raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique")
+    ensure
+      file.close
+    end
     # create the master and nodes
-    created_nodes = {}
+    created_nodes = {'config' => File.expand_path(options[:config])}
     created_nodes['master'] = create_instances([nodes['master']])
     created_nodes['nodes']  = create_instances(nodes['nodes'])
 
@@ -93,7 +97,7 @@ class Puppet::Stack
     ['master', 'nodes'].each do |type|
       stack[type].each do |k, attrs|
         Puppet.notice("Destroying #{type} #{attrs['hostname']}")
-        Puppet::Face[:node_aws, :current].terminate(attrs['hostname'], {:region => attrs['region']})
+        Puppet::Face[:node_aws, :current].terminate(attrs.delete('hostname'), attrs)
       end
     end
     # keep a history of the stacks that we have destroyed
@@ -102,12 +106,13 @@ class Puppet::Stack
 
   def self.list(options)
     Puppet.notice('listing active stacks')
-    Dir[File.expand_path("~/.puppet/stacks/*")].each do |file|
+    stacks = {}
+    Dir[File.expand_path(File.join(get_stack_path, '*'))].each do |file|
       if File.file?(file)
-        Puppet.notice("Active stack: #{File.basename(file)}") if File.file?(file)
-        puts YAML.load_file(file).inspect
+        stacks[File.basename(file)] = YAML.load_file(file)
       end
     end
+    stacks
   end
 
   def self.tmux(options)
@@ -230,15 +235,15 @@ class Puppet::Stack
 
   def self.get_defaults(config_hash)
     # TODO - the user should be able to supply their defaults
-    defaults = {}
-    if(config_hash['defaults'])
-      Puppet.debug('Getting defaults')
-      ['create', 'install'].each do |d|
-        defaults[d]= config_hash['defaults'][d] || {}
-      end
-    else
-      Puppet.debug("No defaults specified")
-      defaults = {'create' => {}, 'install' => {}}
+    stack_conf_file = File.join(get_puppet_path, 'stack_builder.yaml')
+    defaults = File.exists?(stack_conf_file) ?
+      (YAML.load_file(stack_conf_file) || {}) : {}
+    config_hash['defaults'] ||= {}
+    Puppet.debug('Getting defaults')
+    ['create', 'install'].each do |d|
+      defaults[d] ||= {}
+      config_hash['defaults'][d] ||= {}
+      defaults[d]['options'] = (defaults[d]['options'] || {}).merge(config_hash['defaults'][d]['options'] || {})
     end
     defaults
   end
@@ -318,8 +323,12 @@ class Puppet::Stack
   # returns the path where install scripts are located
   # this is here in part for mocking out the path where
   # sripts are loaded from
+  def self.get_puppet_path
+    File.expand_path(File.join('~', '.puppet'))
+  end
+
   def self.get_stack_path
-    File.expand_path(File.join('~', '.puppet', 'stacks'))
+    File.join(get_puppet_path, 'stacks')
   end
 
   def self.script_file_name(hostname)
@@ -343,7 +352,7 @@ class Puppet::Stack
       node.each do |name, attrs|
         if attrs and attrs['create']
           threads << Thread.new do
-            Puppet.info("Building instance #{name}")
+           Puppet.info("Building instance #{name}")
             # TODO I may want to capture more data when nodes
             # are created
             hostname = create_instance(attrs['create']['options'])

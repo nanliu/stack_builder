@@ -1,19 +1,5 @@
 # this creates the new image to build
 puppet_run_type: agent
-defaults:
-  create:
-    options:
-      keyname: dans_keys
-      # EBS backed 32 bit oneiric in us-west-2
-      image: ami-8226abb2
-      region: us-west-2
-      type: m1.small
-      # TODO this group had to be created
-      group: accessible
-  install:
-    options:
-      keyfile: ~/.ssh/dans_keys.pem
-      login: ubuntu
 master:
   master_node:
     create:

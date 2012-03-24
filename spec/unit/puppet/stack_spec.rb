@@ -18,10 +18,11 @@ describe Puppet::Stack do
     @tempfile = Tempfile.open('config')
     tmpfile = Tempfile.open('config')
     tmpfile.close
-    @stack_dir = tmpfile.path
+    @puppet_dir = tmpfile.path
+    @stack_dir = File.join(tmpfile.path, 'stacks')
     tmpfile.unlink
     FileUtils.mkdir_p(@stack_dir)
-    Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
+    Puppet::Stack.expects(:get_puppet_path).at_least_once.returns(@puppet_dir)
   end
 
   after :each do
@@ -285,6 +286,48 @@ describe Puppet::Stack do
           node_face.expects(:create).with({'group' => 'default', 'image' => 'ami-123', 'type' => 't1.tiny'})
           Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
         end
+        it 'should use defaults from a config file' do
+          File.open(File.join(@puppet_dir, 'stack_builder.yaml'), 'w') do |fh|
+            fh.puts <<-EOT
+              create:
+                options:
+                  default_one: file_default
+                  default_two: file_default
+              install:
+                options:
+                  default_three: file_default
+                  default_four: file_default
+            EOT
+          end
+          node = {
+            'defaults' => {
+              'create' =>  { 'options' => { 'default_one'   => 'node_default' }},
+              'install' => { 'options' => { 'default_three' => 'node_default' }}
+            },
+            'nodes' => [{
+              'node_one' => {
+                'create'  => {},
+                'install' => {}
+              }
+            }]
+          }
+
+          Puppet::Stack.expects(:script_file_name).returns('foo')
+
+          write_node_hash(node)
+          node_face.expects(:create).with(
+            {'default_one' => 'node_default', 'default_two' => 'file_default'}
+          ).returns('localhost')
+          Puppet::Face[:node, :current].expects(:install).with(
+            'localhost',
+            {
+              'default_three' => 'node_default',
+              'default_four' => 'file_default',
+              'install_script' => 'foo'
+            }
+          )
+          Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+        end
         it 'should override creation defaults' do
           node = {
             'defaults' => {
@@ -446,13 +489,82 @@ describe Puppet::Stack do
     end
   end
   describe 'when terminating' do
-    it 'should destory created master'
-    it 'should destory all created instances'
-    it 'should not fail when there is no master to destroy'
-    it 'should not fail when there is no nodes to destroy'
+    it 'should destory a created master and agent' do
+      node = {
+        'puppet_run_type' => 'agent',
+        # create a single master
+        'master' => {
+          'master_one' => { 'create' => {}}
+        },
+        'nodes' =>
+        ['node_one' =>
+           {'create' => { 'options' => {}}}
+        ]
+      }
+      node_face.expects(:create).twice.with(
+        {}
+      ).returns('agent').returns('master')
+      write_node_hash(node)
+      # first create the stack
+      Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+      # now test that we can destroy it
+      node_face.expects(:terminate).with('master', {'region' => nil})
+      node_face.expects(:terminate).with('agent', {'region' => nil})
+      Puppet::Stack.destroy({:name => 'dans_stack'})
+    end
+    it 'should not fail when there is no master to destroy' do
+      node = {
+        'puppet_run_type' => 'agent',
+        # create a single master
+        'master' => {
+          'master_one' => {}
+        },
+        'nodes' =>
+        ['node_one' =>
+           {'create' => { 'options' => {'region' => 'dans-region'}}}
+        ]
+      }
+      node_face.expects(:create).with({'region' => 'dans-region'}).returns('danhost')
+      write_node_hash(node)
+      # first create the stack
+      Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack2')
+      # now test that we can destroy it
+      node_face.expects(:terminate).with('danhost', {'region' => 'dans-region'})
+      Puppet::Stack.destroy(:name => 'dans_stack2')
+    end
+    it 'should fail if there are no stacks' do
+      expect do
+        Puppet::Stack.destroy(:name => 'dans_stack1')
+      end.should raise_error(Puppet::Error, /Stack names supplied via --name must have corresponding stack file to be destroyed/)
+    end
+    it 'should not fail if a stack does not have any created hosts' do
+      node = { 'nodes' => ['node_one' => {} ] }
+      write_node_hash(node)
+      # first create the stack
+      Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+      node_face.expects(:terminate).never
+      Puppet::Stack.destroy(:name => 'dans_stack')
+    end
   end
   describe 'when listing' do
-    it 'should list all stacks'
-    it 'should list no stacks when there are not stacks'
+    it 'should list all stacks' do
+      node = { 'nodes' => ['node_one' => {} ] }
+      write_node_hash(node)
+      node_face.expects(:create).never
+      # create multiple stacks
+      ['dans_stack1', 'dan_stack2', 'dan_stack3'].each do |s|
+        Puppet::Stack.build(:config => @tempfile.path, :name => s)
+      end
+      Puppet::Stack.list({}).keys.should =~ ['dans_stack1', 'dan_stack2', 'dan_stack3']
+    end
+    it 'should list no stacks when there are not stacks' do
+      Puppet::Stack.list({}).keys.should == []
+    end
+  end
+  describe '#connect' do
+    it 'should not connect to anything if a stack is empty'
+    it 'should fail with a reasonable error message if tmux is not installed'
+    it 'should connect to specified master'
+    it 'should connect via key if the node was not created'
   end
 end
