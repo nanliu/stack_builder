@@ -4,12 +4,6 @@ nodes:
   - rabbitmq_server:
       create:
         options:
-          keyname: dans_keys
-          # EBS backed 32 bit oneiric in us-west-2
-          image: ami-e434b9d4
-          region: us-west-2
-          type: m1.small
-          group: accessible
       install:
         install_puppet: false
         git_repos:
@@ -19,5 +13,3 @@ nodes:
         git_checkout:
           /etc/puppet/modules/rabbitmq: dev
         options:
-          keyfile: ~/.ssh/dans_keys.pem
-          login: ubuntu

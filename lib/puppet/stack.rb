@@ -235,15 +235,15 @@ class Puppet::Stack
 
   def self.get_defaults(config_hash)
     # TODO - the user should be able to supply their defaults
-    defaults = {}
-    if(config_hash['defaults'])
-      Puppet.debug('Getting defaults')
-      ['create', 'install'].each do |d|
-        defaults[d]= config_hash['defaults'][d] || {}
-      end
-    else
-      Puppet.debug("No defaults specified")
-      defaults = {'create' => {}, 'install' => {}}
+    stack_conf_file = File.join(get_puppet_path, 'stack_builder.yaml')
+    defaults = File.exists?(stack_conf_file) ?
+      (YAML.load_file(stack_conf_file) || {}) : {}
+    config_hash['defaults'] ||= {}
+    Puppet.debug('Getting defaults')
+    ['create', 'install'].each do |d|
+      defaults[d] ||= {}
+      config_hash['defaults'][d] ||= {}
+      defaults[d]['options'] = (defaults[d]['options'] || {}).merge(config_hash['defaults'][d]['options'] || {})
     end
     defaults
   end
@@ -323,8 +323,12 @@ class Puppet::Stack
   # returns the path where install scripts are located
   # this is here in part for mocking out the path where
   # sripts are loaded from
+  def self.get_puppet_path
+    File.expand_path(File.join('~', '.puppet'))
+  end
+
   def self.get_stack_path
-    File.expand_path(File.join('~', '.puppet', 'stacks'))
+    File.join(get_puppet_path, 'stacks')
   end
 
   def self.script_file_name(hostname)

@@ -18,10 +18,11 @@ describe Puppet::Stack do
     @tempfile = Tempfile.open('config')
     tmpfile = Tempfile.open('config')
     tmpfile.close
-    @stack_dir = tmpfile.path
+    @puppet_dir = tmpfile.path
+    @stack_dir = File.join(tmpfile.path, 'stacks')
     tmpfile.unlink
     FileUtils.mkdir_p(@stack_dir)
-    Puppet::Stack.expects(:get_stack_path).at_least_once.returns(@stack_dir)
+    Puppet::Stack.expects(:get_puppet_path).at_least_once.returns(@puppet_dir)
   end
 
   after :each do
@@ -283,6 +284,48 @@ describe Puppet::Stack do
           }
           write_node_hash(node)
           node_face.expects(:create).with({'group' => 'default', 'image' => 'ami-123', 'type' => 't1.tiny'})
+          Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
+        end
+        it 'should use defaults from a config file' do
+          File.open(File.join(@puppet_dir, 'stack_builder.yaml'), 'w') do |fh|
+            fh.puts <<-EOT
+              create:
+                options:
+                  default_one: file_default
+                  default_two: file_default
+              install:
+                options:
+                  default_three: file_default
+                  default_four: file_default
+            EOT
+          end
+          node = {
+            'defaults' => {
+              'create' =>  { 'options' => { 'default_one'   => 'node_default' }},
+              'install' => { 'options' => { 'default_three' => 'node_default' }}
+            },
+            'nodes' => [{
+              'node_one' => {
+                'create'  => {},
+                'install' => {}
+              }
+            }]
+          }
+
+          Puppet::Stack.expects(:script_file_name).returns('foo')
+
+          write_node_hash(node)
+          node_face.expects(:create).with(
+            {'default_one' => 'node_default', 'default_two' => 'file_default'}
+          ).returns('localhost')
+          Puppet::Face[:node, :current].expects(:install).with(
+            'localhost',
+            {
+              'default_three' => 'node_default',
+              'default_four' => 'file_default',
+              'install_script' => 'foo'
+            }
+          )
           Puppet::Stack.build(:config => @tempfile.path, :name => 'dans_stack')
         end
         it 'should override creation defaults' do
