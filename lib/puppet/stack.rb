@@ -45,7 +45,7 @@ class Puppet::Stack
     rescue Errno::EEXIST => ex
       raise(Puppet::Error, "Cannot create stack :#{options[:name]}, stackfile #{stack_file} already exists. Stack names supplied via --name must be unique")
     ensure
-      file.close
+      file.close if file
     end
     # create the master and nodes
     created_nodes = {'config' => File.expand_path(options[:config])}
