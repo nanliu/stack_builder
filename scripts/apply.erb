@@ -113,7 +113,9 @@ cp <%= source %> <%= target %>
 
 mkdir -p /var/lib/puppet_client
 # <%= options.inspect %>
+<% if options['manifest'] %>
 puppet apply --vardir /var/lib/puppet_client --trace --verbose <%= options['manifest'] %> --certname=<%= options['certname'] %> | tee /tmp/puppet_output.log
 return=$?
 ls -lart /var/lib/puppet
 exit $?
+<% end %>
