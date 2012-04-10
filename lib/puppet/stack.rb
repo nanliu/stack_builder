@@ -259,6 +259,7 @@ class Puppet::Stack
       # this setting of confdir sucks
       # I need to patch cloud provisioner to allow arbitrary
       # paths to be set
+      installed_instances = {}
       old_puppet_dir = Puppet[:confdir]
       stack_dir = get_stack_path
       script_dir = File.join(stack_dir, 'scripts')
@@ -313,10 +314,19 @@ class Puppet::Stack
             puts("Failed spawning AWS node: #{spawn_err}")
           end
         end
+        until queue.empty?
+          installed_instance = queue.pop
+          unless(installed_instance.values.first['result']['status'] == 'success')
+            Puppet.error("Install of mode #{mode} did not succeed for node #{installed_instances.keys.first}")
+            raise(Puppet::Error, "Install of mode #{mode} did not succeed for node #{}")
+          end
+          installed_instances.merge!(installed_instance)
+        end
       end
     ensure
       Puppet[:confdir] = old_puppet_dir
     end
+    installed_instances
   end
 
   # installation helpers
