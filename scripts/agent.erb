@@ -6,4 +6,4 @@
 set -u
 set -e
 
-puppet agent --test --certname=<%= options['certname'] %> --server=<%= options['puppetmaster'] %> | tee /tmp/puppet_output.log
+puppet agent --pluginsync --test --certname=<%= options['certname'] %> --server=<%= options['puppetmaster'] %> | tee /tmp/puppet_output.log
