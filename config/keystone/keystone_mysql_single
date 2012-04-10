@@ -1,16 +1,23 @@
-# this creates the new image to build
+#
+# Creates a basic single node installation of keystone
+# and verifies that we can retrieve the admin token
+#
 puppet_run_type: apply
 nodes:
-  - keystone:
+  - keystone_mysql:
       create:
       install:
         install_puppet: false
         git_repos:
+          git://github.com/bodepd/puppetlabs-glance: /etc/puppet/modules/glance
           git://github.com/bodepd/puppetlabs-keystone: /etc/puppet/modules/keystone
-          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
-          git://github.com/puppetlabs/puppet-concat: /etc/puppet/modules/concat
           git://github.com/puppetlabs/puppetlabs-mysql: /etc/puppet/modules/mysql
           git://github.com/puppetlabs/puppetlabs-stdlib: /etc/puppet/modules/stdlib
+          git://github.com/puppetlabs/puppet-concat: concat
+          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
         git_checkout:
           /etc/puppet/modules/keystone: dev
         manifest: /etc/puppet/modules/keystone/examples/site.pp
+      test:
+        commands:
+          - ruby /etc/puppet/modules/keystone/ext/keystone_test.rb

@@ -1,25 +1,27 @@
 # this creates the new image to build
 puppet_run_type: apply
 nodes:
+# nova all in one installation
   - all:
       create:
         options:
       install:
-        install_puppet: false
         git_repos:
-          git://github.com/bodepd/puppetlabs-rabbitmq: /etc/puppet/modules/rabbitmq
-          git://github.com/bodepd/puppetlabs-openstack_test: /etc/puppet/modules/openstack_test
-          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
-          git://github.com/bodepd/puppetlabs-nova: /etc/puppet/modules/nova
           git://github.com/bodepd/puppetlabs-glance: /etc/puppet/modules/glance
           git://github.com/bodepd/puppetlabs-keystone: /etc/puppet/modules/keystone
-          git://github.com/puppetlabs/puppetlabs-mysql: /etc/puppet/modules/mysql
+          git://github.com/bodepd/puppetlabs-nova: /etc/puppet/modules/nova
+          git://github.com/bodepd/puppetlabs-mysql: /etc/puppet/modules/mysql
+          git://github.com/puppetlabs/puppetlabs-rabbitmq: /etc/puppet/modules/rabbitmq
           git://github.com/puppetlabs/puppetlabs-stdlib: /etc/puppet/modules/stdlib
           git://github.com/puppetlabs/puppet-concat: concat
+          git://github.com/puppetlabs/puppet-apt: /etc/puppet/modules/apt
         git_checkout:
-          /etc/puppet/modules/rabbitmq: dev
           /etc/puppet/modules/keystone: dev
           /etc/puppet/modules/glance: dev
           /etc/puppet/modules/nova: dev
-        #manifest: /etc/puppet/modules/nova/examples/site.pp
+          /etc/puppet/modules/mysql: dev
+        manifest: /etc/puppet/modules/nova/examples/all.pp
         options:
+#      test:
+#        command: ruby /etc/puppet/modules/swift/ext/swift.rb
+#        options:
