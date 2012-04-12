@@ -5,7 +5,10 @@ nodes:
   - all:
       create:
         options:
+          image: ami-837249f7
+          region: eu-west-1
       install:
+        install_puppet: true
         git_repos:
           git://github.com/puppetlabs/puppetlabs-glance: /etc/puppet/modules/glance
           git://github.com/puppetlabs/puppetlabs-keystone: /etc/puppet/modules/keystone
@@ -22,9 +25,10 @@ nodes:
         #  /etc/puppet/modules/glance: dev
         #  /etc/puppet/modules/nova: dev
         #  /etc/puppet/modules/mysql: dev
-        #  /etc/puppet/modules/horizon: dev
         manifest: /etc/puppet/modules/nova/examples/all.pp
         options:
+          login:
+            ec2-user
 #      test:
 #        command: ruby /etc/puppet/modules/swift/ext/swift.rb
 #        options:
