@@ -53,6 +53,9 @@ Puppet::Face.define(:stack, '0.0.1') do
       # TODO this should return a hash that represents all of the things that
       # were built
     end
+    when_rendering :console do |value|
+      value.inspect  if value
+    end
   end
 
   action :destroy do
