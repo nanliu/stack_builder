@@ -66,6 +66,9 @@ already been created and does not need provisioning.
     when_invoked do |options|
       Puppet.fail('Install is not yet implemented')
     end
+    when_rendering :console do |value|
+      value.inspect  if value
+    end
   end
 
   action :test do

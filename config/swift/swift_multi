@@ -13,16 +13,17 @@ master:
       answers_payload: https://s3.amazonaws.com/puppetlabs-bizdev/answers_full_stack_builder
       git_repos:
         git://github.com/bodepd/puppet-xinetd: /etc/puppetlabs/puppet/modules/xinetd
-        git://github.com/bodepd/puppetlabs-rsync: /etc/puppetlabs/puppet/modules/rsync
         git://github.com/saz/puppet-ssh: /etc/puppetlabs/puppet/modules/ssh
         git://github.com/saz/puppet-memcached: /etc/puppetlabs/puppet/modules/memcached
-        git://github.com/bodepd/puppetlabs-swift: /etc/puppetlabs/puppet/modules/swift
+        git://github.com/puppetlabs/puppetlabs-rsync: /etc/puppetlabs/puppet/modules/rsync
+        git://github.com/puppetlabs/puppetlabs-swift: /etc/puppetlabs/puppet/modules/swift
+        git://github.com/puppetlabs/puppetlabs-keystone: /etc/puppetlabs/puppet/modules/keystone
         git://github.com/puppetlabs/puppetlabs-stdlib: /etc/puppetlabs/puppet/modules/stdlib
         git://github.com/puppetlabs/puppet-apt: /etc/puppetlabs/puppet/modules/apt
         git://github.com/puppetlabs/puppetlabs-mysql: /etc/puppetlabs/puppet/modules/mysql
         git://github.com/puppetlabs/puppet-concat: /etc/puppetlabs/puppet/modules/concat
-      git_checkout:
-        /etc/puppetlabs/puppet/modules/swift: dev
+      #git_checkout:
+      #  /etc/puppetlabs/puppet/modules/swift: dev
       cp_files:
         /etc/puppetlabs/puppet/modules/swift/examples/multi.pp /etc/puppetlabs/puppet/manifests/site.pp
 nodes:
